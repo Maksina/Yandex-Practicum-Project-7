@@ -8,24 +8,27 @@
 fandom.com защищен капчей, поэтому классический парсинг не сработал.
 HTML-страницы были собраны и сохранены вручную.
 
-[Каталог HTML]()
+[Каталог HTML](https://github.com/Maksina/Yandex-Practicum-Project-7/tree/RAG/task2/HTML)
 
 ## Очистка данных
 
 Парсинг HTML страниц реализован с помощью python-скрипта, который убирает разметку и лишние блоки информации, сохраняет полученную информацию в папку original_txt.
 
-[Parser python]()
+[Parser python](https://github.com/Maksina/Yandex-Practicum-Project-7/tree/RAG/task2/parser)
 
 ## Маппинг определений
 
 Сгенерирован маппинг с оригинальных имен и названий на вымышленные.
 
-[terms_map.json]()
+[terms_map.json](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task2/terms_map.json)
 
-## Финализация базы
+## Замена по маппингу
 
 Разработан Python-скрипт, который заменяет все имена и названия в файлах папки original_txt, используя маппинг в terms_map.json, и сохранет в knoweledge_base.
 
-[Replacer python]()
+[Replacer python](https://github.com/Maksina/Yandex-Practicum-Project-7/tree/RAG/task2/replacer)
 
 
+## Финальная база знаний
+
+[knoweledge_base](https://github.com/Maksina/Yandex-Practicum-Project-7/tree/RAG/task2/knowledge_base)
