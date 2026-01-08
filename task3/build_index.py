@@ -25,13 +25,14 @@ class Qwen3Embeddings(Embeddings):
         self.model = AutoModel.from_pretrained(
             model_name,
             trust_remote_code=True,
-            dtype=torch.float16 if device == "cuda" else torch.float32
-        ).to(device).eval()
+            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+            device_map=device
+        ).eval()
         self.device = device
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         all_embeddings = []
-        batch_size = 8  # уменьшите до 8 или 4, если не хватает VRAM
+        batch_size = 4
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
             inputs = self.tokenizer(
@@ -44,18 +45,16 @@ class Qwen3Embeddings(Embeddings):
 
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                token_embeddings = outputs[0]  # [batch, seq_len, hidden_size]
+                token_embeddings = outputs.last_hidden_state
                 attention_mask = inputs['attention_mask']
 
-                # Mean pooling с учётом attention mask
                 input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
                 sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
                 sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
                 mean_embeddings = sum_embeddings / sum_mask
 
-                # L2-нормализация (обязательно!)
-                mean_embeddings = F.normalize(mean_embeddings, p=2, dim=1)
-                all_embeddings.extend(mean_embeddings.cpu().numpy().tolist())
+                mean_embeddings = torch.nn.functional.normalize(mean_embeddings, p=2, dim=1)
+                all_embeddings.extend(mean_embeddings.cpu().numpy().astype("float32").tolist())
         return all_embeddings
 
     def embed_query(self, text: str) -> list[float]:
@@ -64,24 +63,22 @@ class Qwen3Embeddings(Embeddings):
 
 # === Основной pipeline ===
 if __name__ == "__main__":
-    # 1. Загрузка и разбиение документов
     print("1️⃣ Загружаем и разбиваем документы...")
     chunks = load_and_split_txt_files(knowledge_dir=KNOWLEDGE_DIR)
 
-    # 2. Инициализация эмбеддинг-модели
     print("2️⃣ Инициализируем Qwen3-Embedding-4B...")
     start_load = time.time()
     embeddings = Qwen3Embeddings(MODEL_NAME, device=device)
     load_time = time.time() - start_load
     print(f"✅ Модель загружена за {load_time:.2f} секунд")
 
-    # 3. Создание и сохранение векторного индекса в ChromaDB
     print("3️⃣ Создаём векторную базу ChromaDB...")
     start_index = time.time()
 
-    # Удалим старую базу, если нужно (опционально)
     if os.path.exists(CHROMA_PATH):
         print(f"⚠️ Обнаружена существующая база: {CHROMA_PATH}. Перезаписываем.")
+        import shutil
+        shutil.rmtree(CHROMA_PATH)
 
     db = Chroma.from_documents(
         documents=chunks,
@@ -91,7 +88,6 @@ if __name__ == "__main__":
     )
 
     index_time = time.time() - start_index
-
     print(f"✅ Векторный индекс сохранён в: {os.path.abspath(CHROMA_PATH)}")
     print(f"📊 Чанков в индексе: {len(chunks)}")
     print(f"⏱️ Время индексации: {index_time:.2f} секунд")
