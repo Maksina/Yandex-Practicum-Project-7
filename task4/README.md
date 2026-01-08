@@ -17,6 +17,13 @@
 2. [rag_bot_ollama.py](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task4/rag_bot_ollama.py) - Консольный интерфейс, который использует rag_engine.py
 3. [telegram_bot.py](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task4/telegram_bot.py) - Телеграм бот, который использует rag_engine.py. Необходимо вставить свой токен в скрипт.
 
+Перед запуском необходимо скачать [ollama](https://ollama.com/download), а затем выполнить:
+
+```console
+ollama pull qwen3:4b-instruct
+ollama serve
+```
+
 ## Скриншоты
 
 1. [Успешный ответ](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task4/screenshots/%D0%A3%D1%81%D0%BF%D0%B5%D1%85.png) 
