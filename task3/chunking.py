@@ -48,9 +48,7 @@ def load_and_split_txt_files(
             # === Определяем тип документа ===
             if filename.startswith("Глава_"):
                 doc_type = "episode"
-                # Приводим название к читаемому виду: "Глава_восьмая._Битва..." → "Глава восьмая. Битва..."
-                title = filename.replace("_", " ").replace(".", ".", 1)  # аккуратная замена
-                # Уберём лишние точки после цифр, если нужно
+                title = filename.replace("_", " ").replace(".", ".", 1)
                 title = re.sub(r'(\d+)\.\s*', r'\1. ', title)
                 prefix = f"[Эпизод: {title}]"
             else:
@@ -87,3 +85,79 @@ def load_and_split_txt_files(
 
     print(f"✅ Получено {len(chunks)} чанков.")
     return chunks
+
+
+# === Новая функция для загрузки одного файла ===
+def load_single_txt_file(
+    file_path: Path,
+    chunk_size: int = 512,
+    chunk_overlap: int = 50
+):
+    """
+    Загружает один .txt файл и разбивает его на чанки.
+    """
+    if not file_path.exists():
+        raise FileNotFoundError(f"Файл {file_path} не найден.")
+
+    print(f"📂 Загружаем файл: {file_path.name}")
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        "Qwen/Qwen3-Embedding-4B",
+        trust_remote_code=True
+    )
+    def len_fn(text: str) -> int:
+        return len(tokenizer.encode(text))
+
+    try:
+        loader = TextLoader(str(file_path), encoding="utf-8")
+        docs = loader.load()
+        if not docs:
+            return []
+
+        full_text = "\n\n".join([d.page_content for d in docs])
+        filename = file_path.stem
+
+        # === Определяем тип документа ===
+        if filename.startswith("Глава_"):
+            doc_type = "episode"
+            title = filename.replace("_", " ").replace(".", ".", 1)
+            title = re.sub(r'(\d+)\.\s*', r'\1. ', title)
+            prefix = f"[Эпизод: {title}]"
+        else:
+            doc_type = "character"
+            title = filename.replace("_", " ")
+            prefix = f"[Персонаж: {title}]"
+
+        # === Разбиение ===
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len_fn,
+            separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+            keep_separator=True
+        )
+
+        raw_chunks = text_splitter.split_text(full_text)
+
+        chunks = []
+        chunk_id_counter = 0
+
+        for chunk_text in raw_chunks:
+            chunk_with_context = f"{prefix}\n\n{chunk_text}"
+            chunks.append(Document(
+                page_content=chunk_with_context,
+                metadata={
+                    "source": str(file_path),
+                    "title": title,
+                    "doc_type": doc_type,
+                    "chunk_id": chunk_id_counter
+                }
+            ))
+            chunk_id_counter += 1
+
+        print(f"✅ Получено {len(chunks)} чанков из {file_path.name}.")
+        return chunks
+
+    except Exception as e:
+        print(f"⚠️ Ошибка при загрузке {file_path}: {e}")
+        return []

@@ -7,15 +7,19 @@ import torch
 import torch.nn.functional as F
 import os
 import time
+import hashlib
+from pathlib import Path
 
 # === Конфигурация ===
 KNOWLEDGE_DIR = "../task2/knowledge_base"
 CHROMA_PATH = "./chroma_db"
 MODEL_NAME = "Qwen/Qwen3-Embedding-4B"
 
+# === Путь к index_meta.json===
+INDEX_META_FILE = "../task6/logs/index_meta.json"
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🖥️ Используем устройство: {device}")
-
 
 # === Кастомный эмбеддинг-класс для Qwen3-Embedding-4B ===
 class Qwen3Embeddings(Embeddings):
@@ -91,3 +95,23 @@ if __name__ == "__main__":
     print(f"✅ Векторный индекс сохранён в: {os.path.abspath(CHROMA_PATH)}")
     print(f"📊 Чанков в индексе: {len(chunks)}")
     print(f"⏱️ Время индексации: {index_time:.2f} секунд")
+
+    # === Создаём index_meta.json с относительными путями ===
+    print("4️⃣ Создаём index_meta.json...")
+    knowledge_path = Path(KNOWLEDGE_DIR)
+    txt_files = list(knowledge_path.glob("*.txt"))
+
+    meta = {"files": {}}
+    for file_path in txt_files:
+        # Сохраняем только имя файла (или относительный путь от KNOWLEDGE_DIR)
+        rel_path_str = str(file_path.relative_to(knowledge_path))
+        with open(file_path, "rb") as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+        meta["files"][rel_path_str] = file_hash
+
+    os.makedirs(os.path.dirname(INDEX_META_FILE), exist_ok=True)
+    with open(INDEX_META_FILE, "w", encoding="utf-8") as f:
+        import json
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ Метаданные индекса сохранены в: {os.path.abspath(INDEX_META_FILE)}")
