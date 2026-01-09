@@ -1,5 +1,6 @@
 # rag_engine.py
 import logging
+import re
 import requests
 from pathlib import Path
 from typing import List
@@ -18,9 +19,10 @@ TOP_K = 20
 MAX_NEW_TOKENS = 2048
 TEMPERATURE = 0.7
 TOP_P = 0.8
-LOG_CHUNKS = False
+LOG_CHUNKS = True
 
 logger = logging.getLogger("RAGEngine")
+
 
 class Qwen3Embeddings(Embeddings):
     def __init__(self, model_name: str, device: str = "cpu"):
@@ -64,6 +66,7 @@ class Qwen3Embeddings(Embeddings):
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
 
+
 class RAGEngine:
     def __init__(self):
         self.embedding_function = Qwen3Embeddings(model_name=EMBEDDING_MODEL_NAME, device="cuda")
@@ -85,13 +88,78 @@ class RAGEngine:
         prompts_dir = Path("prompts")
         return (prompts_dir / "few_shot_examples.txt").read_text(encoding="utf-8").strip()
 
+    def _is_malicious_chunk(self, text: str) -> bool:
+        """
+        Проверяет, содержит ли чанк признаки prompt injection или чувствительные данные.
+        Возвращает True, если чанк следует отфильтровать.
+        """
+        text_lower = text.lower()
+
+        # Триггеры команд и ключевых слов
+        command_triggers = [
+            "ignore all instructions",
+            "output:",
+            "print:",
+            "say:",
+            "repeat this",
+            "disregard previous",
+            "override instructions",
+            "reveal the secret",
+            "пароль",
+            "суперпароль",
+            "root:",
+            "swordfish"
+        ]
+
+        # Регулярные выражения для структур с секретами
+        secret_patterns = [
+            r'\broot\s*:\s*\w+',
+            r'\bпароль\s*[:\-]?\s*\w+',
+            r'"[^"]*swordfish[^"]*"',
+            r'секрет\s*[:\-]?\s*\S+'
+        ]
+
+        for trigger in command_triggers:
+            if trigger in text_lower:
+                return True
+
+        for pattern in secret_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+
+        return False
+
     def query(self, user_query: str) -> str:
         logger.info(f"Получен запрос: {user_query[:60]}{'...' if len(user_query) > 60 else ''}")
 
-        docs = self.retriever.invoke(user_query)
+        # Получаем все релевантные чанки
+        all_docs = self.retriever.invoke(user_query)
+
+        # Фильтрация чанков
+        clean_docs = []
+        malicious_docs = []
+        for doc in all_docs:
+            if self._is_malicious_chunk(doc.page_content):
+                malicious_docs.append(doc)
+            else:
+                clean_docs.append(doc)
+
+        # Логирование вредоносных чанков
+        if malicious_docs:
+            logger.warning(f"⚠️ Отфильтровано {len(malicious_docs)} вредоносных чанков:")
+            for idx, doc in enumerate(malicious_docs):
+                source = doc.metadata.get('source', 'unknown')
+                preview = doc.page_content[:100].replace('\n', ' ')
+                logger.warning(f"  [{idx+1}] Источник: {source} | Содержимое: {preview}...")
+
+        docs = clean_docs
+
         if LOG_CHUNKS:
-            for idx, doc in enumerate(docs):
-                logger.info(f"Chunk {idx + 1} (source: {doc.metadata.get('source')}):\n{doc.page_content[:500]}...\n")
+            if docs:
+                for idx, doc in enumerate(docs):
+                    logger.info(f"Chunk {idx + 1} (source: {doc.metadata.get('source')}):\n{doc.page_content[:500]}...\n")
+            else:
+                logger.info("Нет релевантных (и безопасных) чанков для контекста.")
 
         context = "\n\n".join([doc.page_content.strip() for doc in docs])
         logger.info(f"Общий размер контекста: {len(context)} символов.")
@@ -122,7 +190,6 @@ class RAGEngine:
         response = requests.post(url, json=payload)
         if response.status_code == 200:
             result = response.json()
-            # print("DEBUG: Raw Ollama response:", result)
             return result["message"]["content"]
         else:
             raise Exception(f"Ollama API error: {response.status_code} - {response.text}")
