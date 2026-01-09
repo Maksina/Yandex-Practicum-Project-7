@@ -11,10 +11,10 @@
 
 ## Обновление индекса
 
-Обновление индекса происходит с помощью [update_index.py](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/update_index.py).
-Скрипт проверяет изменения/добавление файлов в "../task2/knowledge_base", если файлы добавились или удалились, то запускается процесс получения чанков и обновления БД.
-Проверка файлов исползует хэш, который записывается в [index_meta.json](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/logs/index_meta.json)
-Логи записываются в [index_update.log](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/logs/index_update.log)
+- Обновление индекса происходит с помощью [update_index.py](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/update_index.py).  
+- Скрипт проверяет изменения/добавление файлов в "../task2/knowledge_base", если файлы добавились или удалились, то запускается процесс получения чанков и обновления БД.  
+- Проверка файлов исползует хэш, который записывается в [index_meta.json](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/logs/index_meta.json)  
+- Логи записываются в [index_update.log](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/logs/index_update.log)  
 
 ## Ежедневное обновление базы знаний
 
@@ -32,3 +32,4 @@ Unregister-ScheduledTask -TaskName "RAG Daily Index Update" -Confirm:$false
 
 ## Архитектурная диаграмма
 
+![Image Диаграмма](https://github.com/Maksina/Yandex-Practicum-Project-7/blob/RAG/task6/schemas/Диаграмма.png)
