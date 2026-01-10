@@ -1,0 +1,62 @@
+@startuml seq
+    participant Пользователь as user
+    participant "Авто-тестирование: tester.py" as tester
+    participant "Ядро RAG: rag_engine.py" as rag_engine
+    participant "Векторная БД (ChromaDB)" as chroma
+    participant "Основной LLM: qwen3:4b-instruct " as llm
+    participant "Оценочный LLM: qwen3:4b-instruct" as evalllm
+        
+    user->tester: Запуск
+    loop Для каждой записи из golden_set.json
+
+        activate tester
+        
+        tester->rag_engine: golden-запрос
+        activate rag_engine
+        
+        rag_engine->chroma: Поиск релевантных векторов
+        activate chroma
+        chroma-->rag_engine: Возврат всех найденных чанков
+        deactivate chroma
+        
+        loop Проверка каждого документа
+            rag_engine->rag_engine: _is_malicious_chunk(документ)
+            alt Чанк вредоносный
+                rag_engine->rag_engine: Удалить чанк из контекста
+            else Чанк безопасный
+                rag_engine->rag_engine: Добавить чанк в контекст
+            end
+        end
+        
+        rag_engine->rag_engine: Формирование запроса (промпты + контекст)
+        rag_engine->llm: Вызов LLM
+        activate llm
+        
+        alt База данных пуста
+            llm-->rag_engine: Ошибка: нет документов
+            rag_engine-->tester: "Информация не найдена в документации."
+        else Невалидные чанки
+            llm-->rag_engine: Ответ на основе оставшихся чанков
+            rag_engine-->tester: Ответ с ограничениями
+        else Успешный ответ
+            llm-->rag_engine: Сгенерированный ответ
+            rag_engine-->tester: Ответ
+        end
+        deactivate llm
+        
+        deactivate rag_engine
+        
+        tester->tester: Формирование запроса (промпты + контекст)
+        tester->evalllm: Вызов LLM для оценки ответа
+        activate evalllm
+        evalllm-->tester: Результат анализа
+        deactivate evalllm
+        
+        tester->tester: Сохранение лога
+        
+    end
+
+    tester-->user: Итоговая статистика тестирования
+    deactivate tester
+
+@enduml
